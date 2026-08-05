@@ -16,6 +16,9 @@ const { error: errorResponse } = require('./utils/apiResponse');
 
 const app = express();
 
+// Trust Railway's reverse proxy
+app.set('trust proxy', 1);
+
 // Middleware
 app.use(cors());
 app.use(helmet());
