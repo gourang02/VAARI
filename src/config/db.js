@@ -1,42 +1,26 @@
 const mongoose = require('mongoose');
 const env = require('./env');
 
-let mongod = null;
-
 const connectDB = async () => {
   try {
-    // Try to connect to the standard MongoDB database configured in environment variables
-    const conn = await mongoose.connect(env.MONGODB_URI, {
-      serverSelectionTimeoutMS: 2000 // fail fast if local db is not running
+    // Strip any accidental surrounding quotes from the URI
+    const rawUri = (process.env.MONGODB_URI || env.MONGODB_URI || '').replace(/^["']|["']$/g, '');
+
+    if (!rawUri || (!rawUri.startsWith('mongodb://') && !rawUri.startsWith('mongodb+srv://'))) {
+      throw new Error(`Invalid MONGODB_URI: "${rawUri}". Must start with mongodb:// or mongodb+srv://`);
+    }
+
+    const conn = await mongoose.connect(rawUri, {
+      serverSelectionTimeoutMS: 10000
     });
     console.log(`MongoDB Connected: ${conn.connection.host}`);
   } catch (error) {
-    console.warn(`Standard MongoDB connection failed: ${error.message}.`);
-    console.log('Attempting to start in-memory MongoDB Server (mongodb-memory-server)...');
-    
-    try {
-      const { MongoMemoryServer } = require('mongodb-memory-server');
-      mongod = await MongoMemoryServer.create({
-        instance: {
-          dbName: 'clinic-app',
-          port: 27017 // Bind to default port so separate scripts can connect
-        }
-      });
-      const uri = mongod.getUri();
-      console.log(`In-memory MongoDB started at: ${uri}`);
-      const conn = await mongoose.connect(uri);
-      console.log(`MongoDB (In-Memory) Connected: ${conn.connection.host}`);
-
-      // Since we started in-memory database, let's auto-seed the database so it's ready to use!
-      console.log('Auto-seeding in-memory database...');
-      await autoSeed();
-      console.log('In-memory database seeded successfully!');
-    } catch (memError) {
-      console.error('Failed to start both standard and in-memory MongoDB servers:', memError);
-      process.exit(1);
-    }
+    console.error('MongoDB connection failed:', error.message);
+    process.exit(1);
   }
 };
+
+
 
 const autoSeed = async () => {
   try {
